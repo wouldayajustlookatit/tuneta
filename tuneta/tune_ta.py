@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from pathos.multiprocessing import ProcessPool
-import multiprocessing
+from ray.util.multiprocessing import Pool
+from ray import cluster_resources
 import inspect
 from scipy.stats import rankdata
 from tuneta.config import *
@@ -17,9 +17,8 @@ from collections import OrderedDict
 
 class TuneTA():
 
-    def __init__(self, n_jobs=multiprocessing.cpu_count() - 1, verbose=False):
+    def __init__(self,  verbose=False):
         self.fitted = []
-        self.n_jobs = n_jobs
         self.verbose = verbose
 
     def fit(self, X, y, trials=5, indicators=['tta'], ranges=[(3, 180)],
@@ -39,7 +38,7 @@ class TuneTA():
 
         self.fitted = []  # List containing each indicator completed study
         X.columns = X.columns.str.lower()  # columns must be lower case
-        pool = ProcessPool(nodes=self.n_jobs)  # Set parallel cores
+        pool = Pool(ray_address="auto") # use all Ray cores
 
         # Package level optimization
         if 'tta' in indicators:
@@ -113,14 +112,11 @@ class TuneTA():
 
                 # Only optimize indicators that contain tunable parameters
                 if suggest:
-                    self.fitted.append(pool.apipe(Optimize(function=fn, n_trials=trials,
-                        spearman=spearman).fit, X, y, idx=idx, verbose=self.verbose,
-                        weights=weights, early_stop=early_stop, split=split), )
+                    self.fitted.append(pool.apply_async(func=Optimize(function=fn, n_trials=trials, spearman=spearman).fit, args=(X, y,), kwargs={'idx': idx, 'verbose': self.verbose, 'weights': weights, 'early_stop': early_stop, 'split': split}))
                 else:
-                    self.fitted.append(pool.apipe(Optimize(function=fn, n_trials=1,
-                        spearman=spearman).fit, X, y, idx=idx, verbose=self.verbose,
-                        weights=weights, early_stop=early_stop, split=split), )
-
+                    self.fitted.append(pool.apply_async(func=Optimize(function=fn, n_trials=1, spearman=spearman).fit, args=(X, y,), kwargs={'idx': idx, 'verbose': self.verbose, 'weights': weights, 'early_stop': early_stop, 'split': split}))
+        pool.close()
+        pool.join()
         # Blocking wait to retrieve results
         # if item comes back as non-numerical dont add
         self.fitted = [fit.get() for fit in self.fitted if isinstance(fit.get().res_y_corr,(float,int))]
@@ -201,15 +197,16 @@ class TuneTA():
             columns = [re.sub(r'_[0-9]+$', '', s) for s in columns]
 
         X.columns = X.columns.str.lower()  # columns must be lower case
-        pool = ProcessPool(nodes=self.n_jobs)  # Number of jobs
+        pool = Pool(ray_address="auto")  # Number of jobs
         self.result = []
 
         # Iterate fitted studies and calculate TA with fitted parameter set
         for ind in self.fitted:
             # Create field if no columns or is in columns list
             if columns is None or ind.res_y.name in columns:
-                self.result.append(pool.apipe(ind.transform, X))
-
+                self.result.append(pool.apply_async(func=ind.transform,args=(X,)))
+            pool.close()
+            pool.join()
         # Blocking wait for asynchronous results
         self.result = [res.get() for res in self.result]
 
