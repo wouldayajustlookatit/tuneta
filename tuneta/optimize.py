@@ -300,7 +300,7 @@ class Optimize():
         self.res_y_corr = []
         self.spearman = spearman
 
-    def fit(self, X, y, weights=None, idx=0, verbose=False, early_stop=None, split=None):
+    def fit(self, X, y, weights=None, idx=0, verbose=False, early_stop=None, split=None,db_url=None):
         """
         Optimize a technical indicator
         :param X: Historical dataset
@@ -325,7 +325,7 @@ class Optimize():
         if split is None:
 
             # Create optuna study maximizing correlation
-            self.study = optuna.create_study(direction='maximize', study_name=self.function)
+            self.study = optuna.create_study(direction='maximize', study_name=self.function,storage=db_url,load_if_exists=True,)
 
             # Set required early stopping variables
             self.study.early_stop = early_stop
@@ -334,8 +334,7 @@ class Optimize():
 
             # Start optimization trial
             try:
-                self.study.optimize(lambda trial: _objective(self, trial, X, y, weights),
-                    n_trials=self.n_trials, callbacks=[_single_early_stopping_opt])
+                self.study.optimize(lambda trial: _objective(self, trial, X, y, weights), n_trials=self.n_trials, callbacks=[_single_early_stopping_opt])
 
             # Early stopping (not officially supported by Optuna)
             except optuna.exceptions.OptunaError:
@@ -348,11 +347,9 @@ class Optimize():
 
         # Multi objective optimization
         else:
-
             # Create study to maximize eash split
             sampler = optuna.samplers.NSGAIISampler()
-            self.study = optuna.create_study(directions=(len(split)-1) * ['maximize'], sampler=sampler,
-                                             study_name=self.function)
+            self.study = optuna.create_study(directions=(len(split)-1) * ['maximize'], sampler=sampler,study_name=self.function)
 
             # Early stopping variables
             self.study.early_stop = early_stop

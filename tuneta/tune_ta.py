@@ -22,7 +22,7 @@ class TuneTA():
         self.verbose = verbose
 
     def fit(self, X, y, trials=5, indicators=['tta'], ranges=[(3, 180)],
-        spearman=True, weights=None, early_stop=99999, split=None):
+        spearman=True, weights=None, early_stop=99999, split=None,db_url=None):
         """
         Optimize indicator parameters to maximize correlation
         :param X: Historical dataset
@@ -34,6 +34,7 @@ class TuneTA():
         :param weights: Optional weights sharing the same index as y
         :param early_stop: Max number of optimization trials before stopping
         :param split: Index cut points defining time periods
+        :param db_url: save to db for web view
         """
 
         self.fitted = []  # List containing each indicator completed study
@@ -112,9 +113,9 @@ class TuneTA():
 
                 # Only optimize indicators that contain tunable parameters
                 if suggest:
-                    self.fitted.append(pool.apply_async(func=Optimize(function=fn, n_trials=trials, spearman=spearman).fit, args=(X, y,), kwargs={'idx': idx, 'verbose': self.verbose, 'weights': weights, 'early_stop': early_stop, 'split': split}))
+                    self.fitted.append(pool.apply_async(func=Optimize(function=fn, n_trials=trials, spearman=spearman).fit, args=(X, y,), kwargs={'idx': idx, 'verbose': self.verbose, 'weights': weights, 'early_stop': early_stop, 'split': split,'db_url':db_url}))
                 else:
-                    self.fitted.append(pool.apply_async(func=Optimize(function=fn, n_trials=1, spearman=spearman).fit, args=(X, y,), kwargs={'idx': idx, 'verbose': self.verbose, 'weights': weights, 'early_stop': early_stop, 'split': split}))
+                    self.fitted.append(pool.apply_async(func=Optimize(function=fn, n_trials=1, spearman=spearman).fit, args=(X, y,), kwargs={'idx': idx, 'verbose': self.verbose, 'weights': weights, 'early_stop': early_stop, 'split': split,'db_url':db_url}))
         pool.close()
         pool.join()
         # Blocking wait to retrieve results
