@@ -349,7 +349,7 @@ class Optimize():
         else:
             # Create study to maximize eash split
             sampler = optuna.samplers.NSGAIISampler()
-            self.study = optuna.create_study(directions=(len(split)-1) * ['maximize'], sampler=sampler,study_name=self.function)
+            self.study = optuna.create_study(directions=(len(split)-1) * ['maximize'], sampler=sampler,study_name=self.function,storage=db_url,load_if_exists=True)
 
             # Early stopping variables
             self.study.early_stop = early_stop
